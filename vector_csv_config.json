@@ -1,0 +1,87 @@
+{
+  "serial_port": "COM24",
+  "serial_baud": 115200,
+  "message_rate_ms": 100,
+  "vector_app": "CAN2CSV",
+  "channels": [
+    {
+      "channel": 0,
+      "bitrate": 250000
+    },
+    {
+      "channel": 1,
+      "bitrate": 500000
+    }
+  ],
+  "csv_path": "dynomax.csv",
+  "write_header": true,
+  "save_csv_enabled": true,
+  "send_serial_enabled": true,
+  "send_can_enabled": true,
+  "signals": [
+    {
+      "pid": "PID001",
+      "name": "RPM",
+      "can_channel": 1,
+      "can_id": "0x18FF50E5",
+      "start_bit": 0,
+      "length": 16,
+      "factor": 0.125,
+      "offset": 0.0,
+      "unit": "rpm",
+      "extended": true,
+      "signed": false,
+      "endian": "Intel"
+    },
+    {
+      "pid": "PID002",
+      "name": "Torque",
+      "can_channel": 0,
+      "can_id": "0x18FF50E4",
+      "start_bit": 16,
+      "length": 16,
+      "factor": 0.25,
+      "offset": -500.0,
+      "unit": "Nm",
+      "extended": true,
+      "signed": true,
+      "endian": "Intel"
+    },
+    {
+      "pid": "PID003",
+      "name": "Vel_veiculo",
+      "can_channel": 0,
+      "can_id": "0x0CFEF100",
+      "start_bit": 0,
+      "length": 16,
+      "factor": 0.01,
+      "offset": 0.0,
+      "unit": "km/h",
+      "extended": true,
+      "signed": false,
+      "endian": "Intel"
+    },
+    {
+      "pid": "PID004",
+      "name": "param4",
+      "can_channel": 0,
+      "can_id": "0x123",
+      "start_bit": 0,
+      "length": 8,
+      "factor": 1.0,
+      "offset": 0.0,
+      "unit": "",
+      "extended": false,
+      "signed": false,
+      "endian": "Intel"
+    }
+  ],
+  "com_to_can_layout": [
+    "PID004"
+  ],
+  "can_to_com_layout": [
+    "PID001",
+    "PID002",
+    "PID003"
+  ]
+}

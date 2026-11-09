@@ -1,0 +1,162 @@
+{
+  "schema": "ads2000-config",
+  "version": 5,
+  "machine_name": "ADS2000",
+  "acquisition": {
+    "dll_path": "C:/Users/dufou/OneDrive/Documents/Mestrado/VectorDynomax/VectorDynomax/ADS_20002/WAC2122A.DLL",
+    "ip": "192.168.1.1",
+    "module_addr": 16,
+    "sample_rate_hz": 1000,
+    "external_clock": false
+  },
+  "serial": {
+    "com_port": "COM26",
+    "baudrate": 9600,
+    "period_ms": 100,
+    "tx_channels": [
+      1,
+      2
+    ]
+  },
+  "output": {
+    "csv_path": "C:\\Users\\dufou\\OneDrive\\Documents\\Mestrado\\VectorDynomax\\VectorDynomax\\ADS_20002\\ads2002_samples.csv"
+  },
+  "ui": {
+    "plot_channel": 1
+  },
+  "startup": {
+    "auto_connect": true,
+    "auto_open_serial": true,
+    "auto_start": true
+  },
+  "channels": {
+    "0": {
+      "enabled": false,
+      "sensor": "None",
+      "unit": "-",
+      "coefficient": 1.0,
+      "offset": 0.0,
+      "range_index": 0
+    },
+    "1": {
+      "enabled": true,
+      "sensor": "None",
+      "unit": "-",
+      "coefficient": 1.0,
+      "offset": 0.0,
+      "range_index": 3
+    },
+    "2": {
+      "enabled": true,
+      "sensor": "None",
+      "unit": "-",
+      "coefficient": 1.0,
+      "offset": 0.0,
+      "range_index": 0
+    },
+    "3": {
+      "enabled": false,
+      "sensor": "None",
+      "unit": "-",
+      "coefficient": 1.0,
+      "offset": 0.0,
+      "range_index": 1
+    },
+    "4": {
+      "enabled": false,
+      "sensor": "None",
+      "unit": "-",
+      "coefficient": 1.0,
+      "offset": 0.0,
+      "range_index": 0
+    },
+    "5": {
+      "enabled": false,
+      "sensor": "None",
+      "unit": "-",
+      "coefficient": 1.0,
+      "offset": 0.0,
+      "range_index": 1
+    },
+    "6": {
+      "enabled": false,
+      "sensor": "None",
+      "unit": "-",
+      "coefficient": 1.0,
+      "offset": 0.0,
+      "range_index": 1
+    },
+    "7": {
+      "enabled": false,
+      "sensor": "None",
+      "unit": "-",
+      "coefficient": 1.0,
+      "offset": 0.0,
+      "range_index": 0
+    },
+    "8": {
+      "enabled": false,
+      "sensor": "None",
+      "unit": "-",
+      "coefficient": 1.0,
+      "offset": 0.0,
+      "range_index": 0
+    },
+    "9": {
+      "enabled": false,
+      "sensor": "None",
+      "unit": "-",
+      "coefficient": 1.0,
+      "offset": 0.0,
+      "range_index": 0
+    },
+    "10": {
+      "enabled": false,
+      "sensor": "None",
+      "unit": "-",
+      "coefficient": 1.0,
+      "offset": 0.0,
+      "range_index": 0
+    },
+    "11": {
+      "enabled": false,
+      "sensor": "None",
+      "unit": "-",
+      "coefficient": 1.0,
+      "offset": 0.0,
+      "range_index": 0
+    },
+    "12": {
+      "enabled": false,
+      "sensor": "None",
+      "unit": "-",
+      "coefficient": 1.0,
+      "offset": 0.0,
+      "range_index": 0
+    },
+    "13": {
+      "enabled": false,
+      "sensor": "None",
+      "unit": "-",
+      "coefficient": 1.0,
+      "offset": 0.0,
+      "range_index": 0
+    },
+    "14": {
+      "enabled": false,
+      "sensor": "None",
+      "unit": "-",
+      "coefficient": 1.0,
+      "offset": 0.0,
+      "range_index": 0
+    },
+    "15": {
+      "enabled": false,
+      "sensor": "None",
+      "unit": "-",
+      "coefficient": 1.0,
+      "offset": 0.0,
+      "range_index": 0
+    }
+  }
+}
