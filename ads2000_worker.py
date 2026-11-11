@@ -5,6 +5,7 @@ import argparse
 from pathlib import Path
 import ctypes
 from ctypes import c_byte, c_short, c_int, c_float, POINTER
+import serial
 
 BUF_SIZE = 16384
 
@@ -77,7 +78,7 @@ def main():
         print(json.dumps({"event": "error", "message": "ConnectAC2122 falhou"}))
         sys.exit(1)
 
-    # Configuration des canaux actifs du JSON
+    # Configuration des canaux actifs du JSON ADS2000
     dll.clear_channels()
     active_channels = []
     for ch_str, ch_data in cfg.get("channels", {}).items():
@@ -93,10 +94,19 @@ def main():
 
     print("@@ADS@@ " + json.dumps({"event": "acq_started"}), flush=True)
     
+    # Ouverture de la liaison série dédiée à l'ADS2000 (ex: COM26) depuis son propre JSON
+    com_port = ser_cfg.get("com_port", "COM26")
+    baudrate = ser_cfg.get("baudrate", 115200)
     period = ser_cfg.get("period_ms", 100) / 1000.0
     tx_chs = ser_cfg.get("tx_channels", active_channels)
 
-    # Plage ADC par défaut (si non spécifiée dans le JSON)
+    ser = None
+    try:
+        ser = serial.Serial(com_port, baudrate, timeout=0.1)
+        print(json.dumps({"event": "info", "message": f"Port série {com_port} ouvert pour l'ADS2000"}))
+    except Exception as e:
+        print(json.dumps({"event": "error", "message": f"Impossible d'ouvrir {com_port}: {e}"}))
+
     default_ranges = [-10.0, -5.0, -2.0, -1.0]
 
     try:
@@ -110,32 +120,39 @@ def main():
                     for idx, ch in enumerate(active_channels):
                         raw = values[r * n_ch + idx]
                         
-                        # Récupération des paramètres du canal depuis le JSON
                         ch_data = cfg.get("channels", {}).get(str(ch), {})
                         coef = float(ch_data.get("coefficient", 1.0))
                         offset = float(ch_data.get("offset", 0.0))
                         range_idx = int(ch_data.get("range_index", 0))
                         
-                        # Calcul de la tension en Volts (selon la logique Lynx)
                         r_val = default_ranges[range_idx] if 0 <= range_idx < len(default_ranges) else default_ranges[0]
                         if r_val < 0:
                             volts = raw * (-r_val) / 32768.0
                         else:
                             volts = raw * r_val / 65536.0 + r_val / 2.0
                             
-                        # Valeur physique finale (Coefficient * Volts + Offset)
                         value = coef * volts + offset
                         latest_vals[ch] = value
 
-                # Envoi des valeurs physiques scalées sur la sortie standard (stdout) pour le Launcher
+                # Formatage et envoi direct sur le port série (ex: COM26) défini dans le JSON ADS2000
                 row_data = [f"{latest_vals.get(ch, 0.0):.6f}" for ch in tx_chs]
-                line = ",".join(row_data)
-                print(line, flush=True)
+                line = ",".join(row_data) + "\r\n"
+                
+                if ser and ser.is_open:
+                    try:
+                        ser.write(line.encode("ascii", "replace"))
+                    except Exception:
+                        pass
+
+                # Optionnel : log sur la console pour le suivi
+                print(line.strip(), flush=True)
 
             time.sleep(period)
     except KeyboardInterrupt:
         pass
     finally:
+        if ser and ser.is_open:
+            ser.close()
         dll.stop()
         dll.disconnect()
         dll.close_driver()
