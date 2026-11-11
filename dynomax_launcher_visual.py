@@ -151,12 +151,11 @@ class LogoWidget(tk.Frame):
 
 class DynomaxLauncher:
     STEPS = [
-        ("Verificar se a Vector VN1630A está presente", "usb"),
-        ("Abrir os canais CH1 e CH2 da Vector", "network"),
-        ("Abrir a porta serial para impressão em CSV", "serial"),
+        ("Verificar conexão com módulo CAN (VECTOR VN1630A)", "usb"),
+        ("Abrir e Verificar recursos de null modem (Portas Seriais Virtuais - com0com)", "serial"),
         ("Conectar com o ADS2000 (Background & Aquisição)", "signal"),
-        ("Conectar com a placa CAN Module", "chip"),
-        ("Enviar mensagens para obter a configuração da placa CAN Module", "message"),
+        ("Verificar conexão com módulo de controle da sala dinamométrica (CAN Module 1) e CAN 2", "network"),
+        ("Verificar conexão com sistema de aquisição e controle (Dynomite Board Pro)", "message"),
     ]
 
     def __init__(self, root, config_path=None):
@@ -164,7 +163,6 @@ class DynomaxLauncher:
         self.config_path = config_path
         self.cfg = self._load_config(config_path)
         
-        # Variável para armazenar o caminho do JSON do ADS2000 (separado do config principal)
         default_ads_cfg = self.cfg.get("ads2000_config_path", str(BASE_DIR / "ads2002_config.json"))
         self.ads2000_config_path = tk.StringVar(value=default_ads_cfg)
 
@@ -243,7 +241,7 @@ class DynomaxLauncher:
         bar = ttk.Progressbar(self.splash, mode="indeterminate", length=340)
         bar.pack(pady=5)
         bar.start(12)
-        tk.Label(self.splash, text="Versão 1.0.0 — Mode Réel / Matériel",
+        tk.Label(self.splash, text="Versão 1.0.0 — Mode Réel / Matériel (com0com)",
                  bg=PANEL, fg=MUTED, font=("Segoe UI", 9)).pack(side="bottom", pady=16)
         self.root.after(2200, lambda: self._close_splash(bar))
 
@@ -284,19 +282,16 @@ class DynomaxLauncher:
 
         ttk.Separator(main).pack(fill="x", pady=(10, 12))
 
-        # --- Bloco de Seleção de Configurações (JSONs separados) ---
         cfg_panel = ttk.LabelFrame(main, text="Ficheiros de Configuração", padding=10)
         cfg_panel.pack(fill="x", pady=(0, 6))
 
-        # Config Vector / Launcher
         f_vec = ttk.Frame(cfg_panel)
         f_vec.pack(fill="x", pady=1)
         ttk.Label(f_vec, text="Config Vector/Launcher:", width=22).pack(side="left")
-        self.lbl_vec_cfg = ttk.Label(f_vec, text=str(self.config_path) if self.config_path else "Padrão (Predefinido)", foreground=BG)
+        self.lbl_vec_cfg = ttk.Label(f_vec, text=str(self.config_path) if self.config_path else "Padrão (Predefinido)", foreground=TEXT)
         self.lbl_vec_cfg.pack(side="left", padx=5, fill="x", expand=True)
         ttk.Button(f_vec, text="📂 Escolher...", style="Secondary.TButton", command=self._select_config_file).pack(side="right")
 
-        # Config ADS2000
         f_ads = ttk.Frame(cfg_panel)
         f_ads.pack(fill="x", pady=2)
         ttk.Label(f_ads, text="Config ADS2000:", width=22).pack(side="left")
@@ -317,7 +312,7 @@ class DynomaxLauncher:
             tk.Label(row, text=description, bg=PANEL, fg=TEXT,
                      font=("Segoe UI", 10), anchor="w", wraplength=590,
                      justify="left").pack(side="left", fill="x", expand=True, pady=4)
-            lbl_status = tk.Label(row, text="●  Aguardando", bg=PANEL, fg=MUTED, font=("Segoe UI", 9), padx=12)
+            lbl_status = tk.Label(row, text="●   Aguardando", bg=PANEL, fg=MUTED, font=("Segoe UI", 9), padx=12)
             lbl_status.pack(side="right")
             self.step_labels.append(lbl_status)
 
@@ -336,7 +331,7 @@ class DynomaxLauncher:
         self.lbl_mode = ttk.Label(footer, text="Pronto", foreground=MUTED)
         self.lbl_mode.pack(side="left", padx=5)
         
-        self.btn_start = ttk.Button(footer, text="▶  Iniciar verificação", style="Primary.TButton",
+        self.btn_start = ttk.Button(footer, text="▶   Iniciar verificação", style="Primary.TButton",
                                     command=self.start_verification_thread)
         self.btn_start.pack(side="right", padx=(8, 0))
         
@@ -388,7 +383,7 @@ class DynomaxLauncher:
         self.is_running = True
         self.btn_start.state(["disabled"])
         for lbl in self.step_labels:
-            lbl.config(text="●  Aguardando", fg=MUTED)
+            lbl.config(text="●   Aguardando", fg=MUTED)
         
         threading.Thread(target=self._run_real_hardware_bridge, daemon=True).start()
 
@@ -400,7 +395,7 @@ class DynomaxLauncher:
             self.log_to_console(">> ERRO CRÍTICO: As bibliotecas 'python-can' e 'pyserial' são obrigatórias.")
             success = False
 
-        # --- ETAPA 1: Vector VN1630A ---
+        # --- ETAPA 1: Verificar conexão com módulo CAN (VECTOR VN1630A) ---
         if success:
             self.update_step_status(0, "●  Verificando...", BLUE)
             self.log_to_console(">> [Etapa 1] Detectando hardware Vector...")
@@ -415,45 +410,46 @@ class DynomaxLauncher:
                 self.log_to_console(f">> Aviso Vector: {e}")
                 self.update_step_status(0, "●  Sucesso (Forçado)", GREEN)
 
-        # --- ETAPA 2: Ouvir canais CAN CH1 et CH2 ---
-        buses = {}
+        # --- ETAPA 2: Abrir e Verificar portas seriais (com0com Null Modem + ADS2000 COM e.g., COM26) ---
+        ser = None
+        ads_ser = None
         if success:
-            self.update_step_status(1, "●  Abrindo canais...", BLUE)
-            self.log_to_console(">> [Etapa 2] Abrindo barramentos CAN...")
+            self.update_step_status(1, "●  Abrindo COM...", BLUE)
+            serial_port = cfg.get("serial_port", "COM24")
+            serial_baud = cfg.get("serial_baud", 115200)
+            
+            # Récupération du port série ADS2000 depuis son JSON de configuration (ex: COM26)
+            ads_serial_port = "COM26"
+            ads_baudrate = 115200
             try:
-                for ch_cfg in cfg["channels"]:
-                    ch = ch_cfg["channel"]
-                    br = ch_cfg["bitrate"]
-                    buses[ch] = can.Bus(interface="vector", channel=ch, app_name=cfg["vector_app"], bitrate=br, fd=False)
-                    self.log_to_console(f">> Canal CAN {ch} conectado @ {br} bit/s")
+                ads_config_file = Path(self.ads2000_config_path.get())
+                if ads_config_file.exists():
+                    with open(ads_config_file, "r", encoding="utf-8") as f:
+                        ads_cfg = json.load(f)
+                        ads_serial_port = ads_cfg.get("serial_port", ads_cfg.get("port", "COM26"))
+                        ads_baudrate = ads_cfg.get("baudrate", ads_cfg.get("baud", 115200))
+            except Exception as e:
+                self.log_to_console(f">> Aviso: Leitura do JSON ADS2000 para COM falhou, usando padrão COM26: {e}")
+
+            self.log_to_console(f">> [Etapa 2] Abrindo portas seriais: Principal ({serial_port}) & ADS2000 ({ads_serial_port})...")
+            try:
+                ser = serial.Serial(serial_port, serial_baud, timeout=0.02, write_timeout=0.5)
+                self.log_to_console(f">> Porta serial principal {serial_port} aberta com sucesso.")
+
+                ads_ser = serial.Serial(ads_serial_port, ads_baudrate, timeout=0.02, write_timeout=0.5)
+                self.log_to_console(f">> Porta serial ADS2000 {ads_serial_port} aberta com sucesso.")
+
                 self.update_step_status(1, "●  Sucesso", GREEN)
             except Exception as e:
-                self.log_to_console(f">> Erro CAN: {e}")
+                self.log_to_console(f">> Erro Porta Serial (com0com / ADS COM): {e}")
                 self.update_step_status(1, "●  Falhou", RED)
                 success = False
 
-        # --- ETAPA 3: Ouvir porta Série (COM) ---
-        ser = None
+        # --- ETAPA 3: Conectar com o ADS2000 (Background & Aquisição) ---
         if success:
-            self.update_step_status(2, "●  Abrindo COM...", BLUE)
-            self.log_to_console(f">> [Etapa 3] Abrindo porta serial {cfg['serial_port']}...")
+            self.update_step_status(2, "● Iniciando ADS2000...", BLUE)
+            self.log_to_console(">> [Etapa 3] Iniciando ads2000_worker.py...")
             try:
-                ser = serial.Serial(cfg["serial_port"], cfg["serial_baud"], timeout=0.02, write_timeout=0.5)
-                self.log_to_console(f">> Porta serial {cfg['serial_port']} aberta com sucesso.")
-                self.update_step_status(2, "●  Sucesso", GREEN)
-            except Exception as e:
-                self.log_to_console(f">> Erro Porta Serial: {e}")
-                self.update_step_status(2, "●  Falhou", RED)
-                success = False
-
-        # --- ETAPA 4: Lançar o ADS2000 em background usando o JSON específico do ADS ---
-        # --- ETAPA 4: Lançar o Worker do ADS2000 em background com segurança ---
-        # --- ETAPA 4: Lançar o Worker do ADS2000 em background com segurança ---
-        if success:
-            self.update_step_status(3, "● Iniciando ADS2000...", BLUE)
-            self.log_to_console(">> [Etapa 4] Iniciando ads2000_worker.py...")
-            try:
-                # 1. Nettoyage sécurisé de l'ancien processus s'il existe
                 if self.ads2000_process:
                     try:
                         self.ads2000_process.terminate()
@@ -465,31 +461,18 @@ class DynomaxLauncher:
                 script_path = str(Path(self.ads2000_script_path).resolve())
                 ads_config_file = str(Path(self.ads2000_config_path.get()).resolve())
 
-                # Vérification des chemins
                 if not Path(script_path).is_file():
                     raise FileNotFoundError(f"Script worker introuvable : {script_path}")
                 if not Path(ads_config_file).is_file():
                     raise FileNotFoundError(f"Config JSON introuvable : {ads_config_file}")
 
-                cmd = [
-                    sys.executable,
-                    script_path,
-                    "--config",
-                    ads_config_file
-                ]
-                
+                cmd = [sys.executable, script_path, "--config", ads_config_file]
                 self.log_to_console(f">> Commande: {' '.join(cmd)}")
 
-                # 2. Lancement propre du sous-processus worker
                 self.ads2000_process = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    stdin=subprocess.PIPE,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    bufsize=1
+                    cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    stdin=subprocess.PIPE, text=True, encoding="utf-8",
+                    errors="replace", bufsize=1
                 )
                 
                 ads_connected = False
@@ -504,14 +487,12 @@ class DynomaxLauncher:
                         line_str = line.strip()
                         if not line_str:
                             continue
-                        
                         if line_str.startswith("@@ADS@@"):
                             try:
                                 evt = json.loads(line_str.replace("@@ADS@@", "").strip())
-                                evt_type = evt.get("event")
-                                if evt_type == "connected":
+                                if evt.get("event") == "connected":
                                     ads_connected = True
-                                elif evt_type == "acq_started":
+                                elif evt.get("event") == "acq_started":
                                     ads_acq_started = True
                             except Exception:
                                 pass
@@ -521,111 +502,105 @@ class DynomaxLauncher:
 
                 threading.Thread(target=read_ads_output, daemon=True).start()
                 
-                # Attente active (max 10 secondes)
                 for _ in range(50):
                     if ads_connected and ads_acq_started:
                         break
                     time.sleep(0.2)
 
                 if ads_connected and ads_acq_started:
-                    self.update_step_status(3, "●  Sucesso", GREEN)
-                    self.log_to_console(">> [Etapa 4] ADS2000 operando e adquirindo dados em segundo plano.")
+                    self.update_step_status(2, "●  Sucesso", GREEN)
+                    self.log_to_console(">> [Etapa 3] ADS2000 operando e adquirindo dados em segundo plano.")
                 else:
                     raise RuntimeError("Timeout ao iniciar a aquisição do ADS2000.")
 
             except Exception as e:
                 self.log_to_console(f">> Erro ADS2000: {e}")
-                self.update_step_status(3, "●  Falhou", RED)
+                self.update_step_status(2, "●  Falhou", RED)
                 success = False
 
-        # --- ETAPA 5: CAN Module ---
+        # --- ETAPA 4: Verificar conexão com módulo de controle da sala dinamométrica (CAN Module 1) e CAN 2 ---
+        # --- ETAPA 4: Verificar conexão com módulo de controle da sala dinamométrica (CAN Module 1) e CAN 2 ---
+        buses = {}
+        self.update_step_status(3, "●  Abrindo canais...", BLUE)
+        self.log_to_console(">> [Etapa 4] Abrindo barramentos CAN (CH0 e CH1)...")
+        try:
+            channels_cfg = cfg.get("channels", [{"channel": 0, "bitrate": 500000}, {"channel": 1, "bitrate": 250000}])
+            vector_app = cfg.get("vector_app", "CAN2CSV")
+            for ch_cfg in channels_cfg:
+                ch = ch_cfg["channel"]
+                br = ch_cfg["bitrate"]
+                self.log_to_console(f">> Tentative d'ouverture canal CAN {ch} (@ {br} bit/s, App: {vector_app})...")
+                buses[ch] = can.Bus(interface="vector", channel=ch, app_name=vector_app, bitrate=br, fd=False)
+                self.log_to_console(f">> Canal CAN {ch} conectado com sucesso!")
+            self.update_step_status(3, "●  Sucesso", GREEN)
+        except Exception as e:
+            self.log_to_console(f">> ERRO CRITIQUE CAN: Impossible d'ouvrir les canaux Vector : {e}")
+            self.update_step_status(3, "●  Falhou", RED)
+            success = False
+
+        # --- ETAPA 5: Verificar conexão com sistema de aquisição e controle (Dynomite Board Pro) ---
+       # --- ETAPA 5: Verificar conexão com sistema de aquisição e controle (Dynomite Board Pro) ---
         if success:
             step_idx = 4
-            self.update_step_status(step_idx, "●  Conectando...", BLUE)
-            time.sleep(0.3)
-            self.update_step_status(step_idx, "●  Sucesso", GREEN)
-            self.log_to_console(f">> [{self.STEPS[step_idx][0]}] OK.")
-
-        # --- ETAPA 6: Lancement de la passerelle CAN <-> COM / CSV ---
-        if success:
-            self.update_step_status(5, "●  Em execução", BLUE)
-            self.log_to_console(">> [Etapa 6] Ponte ativa! Envio e escuta em tempo real iniciados.")
+            self.update_step_status(step_idx, "●  Em execução", BLUE)
+            self.log_to_console(f">> [{self.STEPS[step_idx][0]}] Ponte ativa! Transmissão CAN / COM iniciada.")
             self.btn_dynomax.config(state="normal")
             
+            # ---> LANCEMENT AUTOMATIQUE DE DYNOMAX ICI <---
+            self._open_dynomax()
+            
             try:
-                input_layout = cfg["com_to_can_layout"]
-                output_layout = cfg["can_to_com_layout"]
+                input_layout = cfg.get("com_to_can_layout", [s.get("pid", s["name"]) for s in DEFAULT_SIGNALS])
+                output_layout = cfg.get("can_to_com_layout", ["timestamp_s", "can_id"] + input_layout)
                 save_csv = cfg.get("save_csv_enabled", True)
                 send_serial = cfg.get("send_serial_enabled", True)
                 send_can = cfg.get("send_can_enabled", True)
 
                 signals_by_name = {}
-                for sig in cfg["signals"]:
+                signals_list = cfg.get("signals", DEFAULT_SIGNALS)
+                for sig in signals_list:
                     signals_by_name[sig["name"]] = sig
                     signals_by_name[sig.get("pid", sig["name"])] = sig
 
                 csv_handle = None
                 writer = None
                 if save_csv:
-                    path = Path(cfg["csv_path"])
+                    csv_path_str = cfg.get("csv_path", "dynomax.csv")
+                    path = Path(csv_path_str)
                     if str(path.parent) not in ("", "."):
                         path.parent.mkdir(parents=True, exist_ok=True)
                     new_file = not path.exists() or path.stat().st_size == 0
                     csv_handle = open(path, "a", newline="", encoding="utf-8")
                     writer = csv.writer(csv_handle)
-                    if new_file and cfg["write_header"]:
+                    if new_file and cfg.get("write_header", True):
                         writer.writerow(output_layout)
                         csv_handle.flush()
 
                 rxbuf = bytearray()
                 last_values = {}
                 serial_fields = [f for f in output_layout if f not in ("timestamp_s", "can_id")]
-                rate_ms = cfg.get("message_rate_ms", 0)
+                rate_ms = cfg.get("message_rate_ms", 100)
                 last_send = time.monotonic()
                 sent_state = {"line": None}
 
                 def send_serial_line():
-                    serial_line = ",".join(format_value(last_values.get(f, 0)) for f in serial_fields)
-                    payload = (serial_line + "\r\n").encode("ascii", "replace")
-                    ser.write(payload)
-                    if rate_ms == 0 or serial_line != sent_state["line"]:
-                        sent_state["line"] = serial_line
+                    """Envoi non-bloquant sur le port série (COM24) même si personne n'écoute en face"""
+                    try:
+                        serial_line = ",".join(format_value(last_values.get(f, 0)) for f in serial_fields)
+                        payload = (serial_line + "\r\n").encode("ascii", "replace")
+                        
+                        if ser and ser.is_open:
+                            ser.write(payload)  # Envoi vers com0com (COM24)
+                        if ads_ser and ads_ser.is_open:
+                            ads_ser.write(payload) # Envoi vers COM26
+                            
+                        if rate_ms == 0 or serial_line != sent_state["line"]:
+                            sent_state["line"] = serial_line
+                    except Exception:
+                        pass
 
                 while self.is_running:
-                    if ser and ser.in_waiting:
-                        chunk = ser.read(ser.in_waiting)
-                        if chunk:
-                            rxbuf.extend(chunk)
-                            while True:
-                                m = re.search(rb"[\r\n]", rxbuf)
-                                if not m:
-                                    break
-                                raw = bytes(rxbuf[:m.start()])
-                                del rxbuf[:m.end()]
-                                line = raw.decode("ascii", "replace").strip()
-                                if line and send_can:
-                                    try:
-                                        fields = next(csv.reader([line]))
-                                        if len(fields) == len(input_layout):
-                                            values_by_name = {name: float(value.strip()) for name, value in zip(input_layout, fields)}
-                                            groups = {}
-                                            for name, value in values_by_name.items():
-                                                if name in signals_by_name:
-                                                    sig = signals_by_name[name]
-                                                    factor = float(sig["factor"])
-                                                    if factor != 0:
-                                                        raw_value = round((value - float(sig["offset"])) / factor)
-                                                        ch = int(sig.get("can_channel", 0))
-                                                        key = (ch, parse_can_id(sig["can_id"]), bool(sig["extended"]))
-                                                        if key not in groups:
-                                                            groups[key] = bytearray(8)
-                                                        encode_raw(groups[key], sig, raw_value)
-                                            for (ch, can_id, ext), data in groups.items():
-                                                if ch in buses:
-                                                    buses[ch].send(can.Message(arbitration_id=can_id, is_extended_id=ext, data=bytes(data)), timeout=0.1)
-                                    except Exception:
-                                        pass
-
+                    # Lecture et émission sur les bus CAN (Vector VN1630A)
                     for ch, bus in buses.items():
                         for _ in range(50):
                             msg = bus.recv(timeout=0)
@@ -633,7 +608,7 @@ class DynomaxLauncher:
                                 break
                             signal_values = {}
                             matched = False
-                            for sig in cfg["signals"]:
+                            for sig in signals_list:
                                 if int(sig.get("can_channel", 0)) == ch and \
                                    parse_can_id(sig["can_id"]) == msg.arbitration_id and \
                                    bool(sig["extended"]) == msg.is_extended_id:
@@ -654,6 +629,9 @@ class DynomaxLauncher:
                                 value_map.update(signal_values)
                                 row = [format_value(value_map.get(field, "")) for field in output_layout]
                                 
+                                # Optionnel : Afficher le CAN dans la console pour vérifier
+                                self.root.after(0, lambda id=msg.arbitration_id, vals=signal_values: self.log_to_console(f"[CAN 0x{id:X}] {vals}"))
+
                                 if save_csv and writer is not None:
                                     writer.writerow(row)
                                     csv_handle.flush()
@@ -661,6 +639,7 @@ class DynomaxLauncher:
                                 if send_serial and rate_ms == 0:
                                     send_serial_line()
 
+                    # Envoi périodique sur le port série (COM24) si configuré par timer
                     if send_serial and rate_ms > 0:
                         now = time.monotonic()
                         if now - last_send >= rate_ms / 1000.0:
@@ -673,11 +652,12 @@ class DynomaxLauncher:
                     csv_handle.close()
             except Exception as e:
                 self.log_to_console(f">> Erro na execução da ponte: {e}")
-
         # Nettoyage et arrêt propre
         try:
             if ser and ser.is_open:
                 ser.close()
+            if ads_ser and ads_ser.is_open:
+                ads_ser.close()
             for bus in buses.values():
                 bus.shutdown()
             if self.ads2000_process:
@@ -695,7 +675,7 @@ class DynomaxLauncher:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Dynomax Launcher avec sélection JSON")
+    parser = argparse.ArgumentParser(description="Dynomax Launcher com seleção JSON (com0com)")
     parser.add_argument("--config", type=str, help="Caminho para o arquivo JSON de configuração")
     args = parser.parse_args()
 
