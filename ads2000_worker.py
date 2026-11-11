@@ -1,4 +1,3 @@
-# ads2000_worker.py
 import sys
 import time
 import json
@@ -6,7 +5,6 @@ import argparse
 from pathlib import Path
 import ctypes
 from ctypes import c_byte, c_short, c_int, c_float, POINTER
-import serial
 
 BUF_SIZE = 16384
 
@@ -67,7 +65,7 @@ def main():
 
     cfg = json.loads(Path(args.config).read_text(encoding="utf-8"))
     acq_cfg = cfg["acquisition"]
-    ser_cfg = cfg["serial"]
+    ser_cfg = cfg.get("serial", {})
 
     dll = LynxDLL(acq_cfg["dll_path"])
     if not dll.open_driver():
@@ -95,8 +93,6 @@ def main():
 
     print("@@ADS@@ " + json.dumps({"event": "acq_started"}), flush=True)
     
-    # Ouverture de la liaison série
-    ser = serial.Serial(ser_cfg["com_port"], ser_cfg["baudrate"], timeout=0.1)
     period = ser_cfg.get("period_ms", 100) / 1000.0
     tx_chs = ser_cfg.get("tx_channels", active_channels)
 
@@ -131,16 +127,15 @@ def main():
                         value = coef * volts + offset
                         latest_vals[ch] = value
 
-                # Envoi des valeurs physiques scalées sur le port série au format CSV
+                # Envoi des valeurs physiques scalées sur la sortie standard (stdout) pour le Launcher
                 row_data = [f"{latest_vals.get(ch, 0.0):.6f}" for ch in tx_chs]
-                line = ",".join(row_data) + "\r\n"
-                ser.write(line.encode("ascii"))
+                line = ",".join(row_data)
+                print(line, flush=True)
 
             time.sleep(period)
     except KeyboardInterrupt:
         pass
     finally:
-        ser.close()
         dll.stop()
         dll.disconnect()
         dll.close_driver()
